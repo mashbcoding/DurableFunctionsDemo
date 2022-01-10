@@ -1,6 +1,6 @@
 namespace DurableFunctionsDemo.DurableOrchestration
 {
-    public class UnorderedDataFile
+    public class DataFile
     {
         public string FileName { get; set; }
 

@@ -17,16 +17,11 @@ namespace DurableFunctionsDemo.DurableOrchestration
         {
             log = context.CreateReplaySafeLogger(log);
 
-            var fanOutTasks = new List<Task>();
-            for (int i = 1; i <= 3; i++)
-            {
-                var unorderedDataFile = new UnorderedDataFile { FileName =  $"file-{i}.png", OrchestrationId = context.InstanceId };
-                fanOutTasks.Add(context.CallActivityAsync("GenerateUnorderedDataSet", unorderedDataFile));
-            }
+            var approvalRequestOrchestration = new ApprovalRequestOrchestration { NumDataFiles = 3, OrchestrationId = context.InstanceId };
 
-            await Task.WhenAll(fanOutTasks);
+            var unorderedDataFiles = await context.CallSubOrchestratorAsync<DataFile[]>("GenerateApprovalRequestOrchestrator", approvalRequestOrchestration);
 
-            await context.CallActivityAsync("RequestApproval", context.InstanceId);
+            await context.CallActivityAsync("RequestApproval", unorderedDataFiles);
 
             var approvalResult = await context.WaitForExternalEvent<string>("ApprovalResult");
 
@@ -34,6 +29,8 @@ namespace DurableFunctionsDemo.DurableOrchestration
             {
                 //do approval suborchestration
                 log.LogInformation($"The request for {context.InstanceId} was approved!");
+
+                await context.CallSubOrchestratorAsync<DataFile[]>("CompleteApprovalOrchestrator", approvalRequestOrchestration);
                 
                 return "Approved";
             }
@@ -44,6 +41,42 @@ namespace DurableFunctionsDemo.DurableOrchestration
             }
 
             return "Rejected";
+        }
+
+        [FunctionName("GenerateApprovalRequestOrchestrator")]
+        public static async Task<DataFile[]> GenerateApprovalRequestOrchestrator(
+            [OrchestrationTrigger] IDurableOrchestrationContext context
+        )
+        {
+            var approvalRequestOrchestration = context.GetInput<ApprovalRequestOrchestration>();
+
+            var fanOutTasks = new List<Task<DataFile>>();
+            for (int i = 1; i <= approvalRequestOrchestration.NumDataFiles; i++)
+            {
+                var unorderedDataFile = new DataFile { FileName =  $"file-{i}.png", OrchestrationId = approvalRequestOrchestration.OrchestrationId };
+                fanOutTasks.Add(context.CallActivityAsync<DataFile>("GenerateUnorderedDataSet", unorderedDataFile));
+            }
+
+            var unorderedDataFiles = await Task.WhenAll(fanOutTasks);
+
+            return unorderedDataFiles;
+        }
+
+        [FunctionName("CompleteApprovalOrchestrator")]
+        public static async Task CompleteApprovalOrchestrator(
+            [OrchestrationTrigger] IDurableOrchestrationContext context
+        )
+        {
+            var approvalRequestOrchestration = context.GetInput<ApprovalRequestOrchestration>();
+
+            var fanOutTasks = new List<Task<DataFile>>();
+            for (int i = 1; i <= approvalRequestOrchestration.NumDataFiles; i++)
+            {
+                var orderedDataFile = new DataFile { FileName =  $"file-{i}.png", OrchestrationId = approvalRequestOrchestration.OrchestrationId };
+                fanOutTasks.Add(context.CallActivityAsync<DataFile>("GenerateOrderedDataSet", orderedDataFile));
+            }
+
+            await Task.WhenAll(fanOutTasks);
         }
 
         [FunctionName("StartSendGridOrchestration")]
