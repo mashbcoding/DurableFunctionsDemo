@@ -27,7 +27,6 @@ namespace DurableFunctionsDemo.DurableOrchestration
 
             if (approvalResult == "Approved")
             {
-                //do approval suborchestration
                 log.LogInformation($"The request for {context.InstanceId} was approved!");
 
                 await context.CallSubOrchestratorAsync<DataFile[]>("CompleteApprovalOrchestrator", approvalRequestOrchestration);
@@ -36,11 +35,12 @@ namespace DurableFunctionsDemo.DurableOrchestration
             }
             else
             {
-                //do rejection activity
                 log.LogInformation($"The request for {context.InstanceId} was rejected!");
-            }
 
-            return "Rejected";
+                await context.CallActivityAsync("ConfirmRejection", context.InstanceId);
+
+                return "Rejected";
+            }
         }
 
         [FunctionName("GenerateApprovalRequestOrchestrator")]
@@ -76,7 +76,9 @@ namespace DurableFunctionsDemo.DurableOrchestration
                 fanOutTasks.Add(context.CallActivityAsync<DataFile>("GenerateOrderedDataSet", orderedDataFile));
             }
 
-            await Task.WhenAll(fanOutTasks);
+            var orderedDataFiles = await Task.WhenAll(fanOutTasks);
+
+            await context.CallActivityAsync("ConfirmApproval", orderedDataFiles);
         }
 
         [FunctionName("StartSendGridOrchestration")]

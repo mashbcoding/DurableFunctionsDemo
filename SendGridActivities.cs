@@ -106,7 +106,6 @@ namespace DurableFunctionsDemo.DurableOrchestration
 
             var emailMessage = new SendGridMessage()
             {
-                Subject = "A new request is awaiting your approval",
                 From = senderEmailAddress,
                 TemplateId = sendgridTemplateId
             };
@@ -116,7 +115,9 @@ namespace DurableFunctionsDemo.DurableOrchestration
                 new
                 {
                     ApprovedUrl = approvedUrl,
-                    RejectedUrl = rejectedUrl
+                    RejectedUrl = rejectedUrl,
+                    Mode = "Request",
+                    Subject = "A new request is awaiting your approval"
                 }
             );
 
@@ -131,6 +132,79 @@ namespace DurableFunctionsDemo.DurableOrchestration
             await sendGridMessage.AddAsync(emailMessage);
 
             log.LogInformation($"Sent approval request for {orchestrationId}.");
+        }
+
+        [FunctionName("ConfirmApproval")]
+        public static async Task ConfirmApproval([ActivityTrigger] DataFile[] dataFiles,
+        [SendGrid(ApiKey = "SendGridApiKey")] IAsyncCollector<SendGridMessage> sendGridMessage,
+        IBinder binder,
+        ILogger log)
+        {
+            var orchestrationId = dataFiles[0].OrchestrationId;
+
+            log.LogInformation($"Preparing approval confirmation for {orchestrationId}.");
+
+            var approverEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("ApproverEmailAddress"));
+            var senderEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("SenderEmailAddress"));
+            var sendgridTemplateId = Environment.GetEnvironmentVariable("SendGridTemplateId");
+
+            var emailMessage = new SendGridMessage()
+            {
+                From = senderEmailAddress,
+                TemplateId = sendgridTemplateId
+            };
+
+            emailMessage.AddTo(approverEmailAddress);
+            emailMessage.SetTemplateData(
+                new
+                {
+                    Mode = "Approval",
+                    Subject = "Your request has been processed"
+                }
+            );
+
+            foreach (var dataFile in dataFiles.OrderBy(f => f.FileName))
+            {
+                using (var blobStream = await binder.BindAsync<Stream>(new BlobAttribute($"attachments/{dataFile.OrchestrationId}/ordered/{dataFile.FileName}", FileAccess.Read)))
+                {
+                    await emailMessage.AddAttachmentAsync(dataFile.FileName, blobStream, "image/png", "attachment");
+                }
+            }
+
+            await sendGridMessage.AddAsync(emailMessage);
+
+            log.LogInformation($"Sent approval confirmation for {orchestrationId}.");
+        }
+
+        [FunctionName("ConfirmRejection")]
+        public static async Task ConfirmRejection([ActivityTrigger] string orchestrationId,
+        [SendGrid(ApiKey = "SendGridApiKey")] IAsyncCollector<SendGridMessage> sendGridMessage,
+        ILogger log)
+        {
+            log.LogInformation($"Preparing rejection confirmation for {orchestrationId}.");
+
+            var approverEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("ApproverEmailAddress"));
+            var senderEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("SenderEmailAddress"));
+            var sendgridTemplateId = Environment.GetEnvironmentVariable("SendGridTemplateId");
+
+            var emailMessage = new SendGridMessage()
+            {
+                From = senderEmailAddress,
+                TemplateId = sendgridTemplateId
+            };
+
+            emailMessage.AddTo(approverEmailAddress);
+            emailMessage.SetTemplateData(
+                new
+                {
+                    Mode = "Rejection",
+                    Subject = "Your request has been canceled"
+                }
+            );
+
+            await sendGridMessage.AddAsync(emailMessage);
+
+            log.LogInformation($"Sent rejection confirmation for {orchestrationId}.");
         }
     }
 }
