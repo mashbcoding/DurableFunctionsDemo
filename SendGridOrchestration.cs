@@ -17,6 +17,15 @@ namespace DurableFunctionsDemo.DurableOrchestration
         {
             log = context.CreateReplaySafeLogger(log);
 
+            var fanOutTasks = new List<Task>();
+            for (int i = 1; i <= 3; i++)
+            {
+                var unorderedDataFile = new UnorderedDataFile { FileName =  $"file-{i}.png", OrchestrationId = context.InstanceId };
+                fanOutTasks.Add(context.CallActivityAsync("GenerateUnorderedDataSet", unorderedDataFile));
+            }
+
+            await Task.WhenAll(fanOutTasks);
+
             await context.CallActivityAsync("RequestApproval", context.InstanceId);
 
             var approvalResult = await context.WaitForExternalEvent<string>("ApprovalResult");
