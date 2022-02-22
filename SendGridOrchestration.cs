@@ -3,6 +3,7 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -16,6 +17,8 @@ namespace DurableFunctionsDemo.DurableOrchestration
             ILogger log)
         {
             log = context.CreateReplaySafeLogger(log);
+
+            log.LogInformation($"Starting orchestration with instanceId = {context.InstanceId}");
 
             var approvalRequestOrchestration = new ApprovalRequestOrchestration { NumDataFiles = 3, OrchestrationId = context.InstanceId };
 
@@ -93,6 +96,37 @@ namespace DurableFunctionsDemo.DurableOrchestration
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
             return starter.CreateCheckStatusResponse(req, instanceId);
+        }
+
+        [FunctionName("StartSingletonSendGridOrchestration")]
+        public static async Task<HttpResponseMessage> HttpStartSingleton(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = "Approval/{instanceId}")] HttpRequestMessage req,
+            [DurableClient] IDurableOrchestrationClient starter,
+            string instanceId,
+            ILogger log)
+        {
+            var existingInstance = await starter.GetStatusAsync(instanceId);
+
+            if (existingInstance == null
+            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Completed
+            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Failed
+            || existingInstance.RuntimeStatus == OrchestrationRuntimeStatus.Terminated)
+            {
+                //string instanceId = await starter.StartNewAsync("SendGridOrchestration", null);   //"normally" you would start orchestration and return instanceId
+                await starter.StartNewAsync("SendGridOrchestration", instanceId);
+                log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+
+                return starter.CreateCheckStatusResponse(req, instanceId);
+            }
+            else
+            {
+                log.LogInformation($"Orchestration with ID '{instanceId}' already exists.");
+
+                return new HttpResponseMessage(HttpStatusCode.Conflict)
+                {
+                    Content = new StringContent($"Orchestration with ID '{instanceId}' already exists."),
+                };
+            }
         }
     }
 }
