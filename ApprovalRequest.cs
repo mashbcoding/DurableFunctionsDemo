@@ -1,6 +1,6 @@
 namespace DurableFunctionsDemo.DurableOrchestration
 {
-    public class ApprovalRequestOrchestration
+    public class ApprovalRequest
     {
         public int NumDataFiles { get; set;}
 

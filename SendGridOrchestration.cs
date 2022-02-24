@@ -20,9 +20,9 @@ namespace DurableFunctionsDemo.DurableOrchestration
 
             log.LogInformation($"Starting orchestration with instanceId = {context.InstanceId}");
 
-            var approvalRequestOrchestration = new ApprovalRequestOrchestration { NumDataFiles = 3, OrchestrationId = context.InstanceId };
+            var approvalRequest = new ApprovalRequest { NumDataFiles = 3, OrchestrationId = context.InstanceId };
 
-            var unorderedDataFiles = await context.CallSubOrchestratorAsync<DataFile[]>("GenerateApprovalRequestOrchestrator", approvalRequestOrchestration);
+            var unorderedDataFiles = await context.CallSubOrchestratorAsync<DataFile[]>("GenerateApprovalRequestOrchestrator", approvalRequest);
 
             await context.CallActivityAsync("RequestApproval", unorderedDataFiles);
 
@@ -32,7 +32,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
             {
                 log.LogInformation($"The request for {context.InstanceId} was approved!");
 
-                await context.CallSubOrchestratorAsync<DataFile[]>("CompleteApprovalOrchestrator", approvalRequestOrchestration);
+                await context.CallSubOrchestratorAsync<DataFile[]>("CompleteApprovalOrchestrator", approvalRequest);
                 
                 return "Approved";
             }
@@ -51,7 +51,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
             [OrchestrationTrigger] IDurableOrchestrationContext context
         )
         {
-            var approvalRequestOrchestration = context.GetInput<ApprovalRequestOrchestration>();
+            var approvalRequestOrchestration = context.GetInput<ApprovalRequest>();
 
             var fanOutTasks = new List<Task<DataFile>>();
             for (int i = 1; i <= approvalRequestOrchestration.NumDataFiles; i++)
@@ -70,7 +70,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
             [OrchestrationTrigger] IDurableOrchestrationContext context
         )
         {
-            var approvalRequestOrchestration = context.GetInput<ApprovalRequestOrchestration>();
+            var approvalRequestOrchestration = context.GetInput<ApprovalRequest>();
 
             var fanOutTasks = new List<Task<DataFile>>();
             for (int i = 1; i <= approvalRequestOrchestration.NumDataFiles; i++)
