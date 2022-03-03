@@ -5,5 +5,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
         public int NumDataFiles { get; set;}
 
         public string OrchestrationId { get; set;}
+
+        public int RequestNumber { get; set;}
     }
 }

@@ -7,6 +7,8 @@ namespace DurableFunctionsDemo
 {
     public interface IMyDurableEntity
     {
+        Task<int> GetRequestNumber();
+
         void Increment();
     }
 
@@ -15,6 +17,8 @@ namespace DurableFunctionsDemo
     {
         [JsonProperty("requestNumber")]
         public int RequestNumber { get; set; }
+
+        public Task<int> GetRequestNumber() => Task.FromResult(this.RequestNumber);
 
         public void Increment() => this.RequestNumber++;
 
