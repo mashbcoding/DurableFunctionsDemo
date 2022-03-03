@@ -1,9 +1,7 @@
 namespace DurableFunctionsDemo.DurableOrchestration
 {
-    public class DataFile
+    public class Rejection
     {
-        public string FileName { get; set; }
-
         public string OrchestrationId { get; set; }
 
         public int RequestNumber { get; set; }

@@ -15,7 +15,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
 {
     public static class SendGridActivities
     {
-        [FunctionName("GenerateUnorderedDataSet")]
+        [FunctionName(nameof(GenerateUnorderedDataSet))]
         public static async Task<DataFile> GenerateUnorderedDataSet([ActivityTrigger] DataFile dataFile,
         IBinder binder,
         ILogger log)
@@ -39,7 +39,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
             return dataFile;
         }
 
-        [FunctionName("GenerateOrderedDataSet")]
+        [FunctionName(nameof(GenerateOrderedDataSet))]
         public static async Task<DataFile> GenerateOrderedDataSet([ActivityTrigger] DataFile dataFile,
         IBinder binder,
         ILogger log)
@@ -75,7 +75,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
             return dataFile;
         }
         
-        [FunctionName("RequestApproval")]
+        [FunctionName(nameof(RequestApproval))]
         public static async Task RequestApproval([ActivityTrigger] DataFile[] dataFiles,
         [SendGrid(ApiKey = "SendGridApiKey")] IAsyncCollector<SendGridMessage> sendGridMessage,
         [Table("Approvals", "AzureWebJobsStorage")] IAsyncCollector<Approval> approval,
@@ -83,6 +83,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
         ILogger log)
         {
             var orchestrationId = dataFiles[0].OrchestrationId;
+            var requestNumber = dataFiles[0].RequestNumber;
 
             log.LogInformation($"Preparing approval request for {orchestrationId}.");
             
@@ -117,7 +118,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
                     ApprovedUrl = approvedUrl,
                     RejectedUrl = rejectedUrl,
                     Mode = "Request",
-                    Subject = "A new request is awaiting your approval"
+                    Subject = $"Request #{requestNumber} is awaiting your approval"
                 }
             );
 
@@ -134,13 +135,14 @@ namespace DurableFunctionsDemo.DurableOrchestration
             log.LogInformation($"Sent approval request for {orchestrationId}.");
         }
 
-        [FunctionName("ConfirmApproval")]
+        [FunctionName(nameof(ConfirmApproval))]
         public static async Task ConfirmApproval([ActivityTrigger] DataFile[] dataFiles,
         [SendGrid(ApiKey = "SendGridApiKey")] IAsyncCollector<SendGridMessage> sendGridMessage,
         IBinder binder,
         ILogger log)
         {
             var orchestrationId = dataFiles[0].OrchestrationId;
+            var requestNumber = dataFiles[0].RequestNumber;
 
             log.LogInformation($"Preparing approval confirmation for {orchestrationId}.");
 
@@ -159,7 +161,7 @@ namespace DurableFunctionsDemo.DurableOrchestration
                 new
                 {
                     Mode = "Approval",
-                    Subject = "Your request has been processed"
+                    Subject = $"Request #{requestNumber} has been processed"
                 }
             );
 
@@ -176,12 +178,12 @@ namespace DurableFunctionsDemo.DurableOrchestration
             log.LogInformation($"Sent approval confirmation for {orchestrationId}.");
         }
 
-        [FunctionName("ConfirmRejection")]
-        public static async Task ConfirmRejection([ActivityTrigger] string orchestrationId,
+        [FunctionName(nameof(ConfirmRejection))]
+        public static async Task ConfirmRejection([ActivityTrigger] Rejection rejection,
         [SendGrid(ApiKey = "SendGridApiKey")] IAsyncCollector<SendGridMessage> sendGridMessage,
         ILogger log)
         {
-            log.LogInformation($"Preparing rejection confirmation for {orchestrationId}.");
+            log.LogInformation($"Preparing rejection confirmation for {rejection.OrchestrationId}.");
 
             var approverEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("ApproverEmailAddress"));
             var senderEmailAddress = new EmailAddress(Environment.GetEnvironmentVariable("SenderEmailAddress"));
@@ -198,13 +200,13 @@ namespace DurableFunctionsDemo.DurableOrchestration
                 new
                 {
                     Mode = "Rejection",
-                    Subject = "Your request has been canceled"
+                    Subject = $"Request #{rejection.RequestNumber} has been canceled"
                 }
             );
 
             await sendGridMessage.AddAsync(emailMessage);
 
-            log.LogInformation($"Sent rejection confirmation for {orchestrationId}.");
+            log.LogInformation($"Sent rejection confirmation for {rejection.OrchestrationId}.");
         }
     }
 }
